@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: rgba(118, 226, 199, 0.904);
+            font-family: Arial, sans-serif;
+        }
+
+        #tree-container {
+            height: 100vh;
+            width: 200%;
+            overflow: auto;
+        }
+
+        .link {
+            fill: none;
+            stroke: #666;
+            stroke-width: 2px;
+        }
+
+        .node {
+            cursor: pointer;
+        }
+
+        .node circle {
+            fill: rgba(221, 221, 221, 0);
+            stroke: rgba(153, 153, 153, 0);
+            stroke-width: 16px;
+        }
+
+        .node text {
+            font-size: 1.2em;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+
+        .node--leaf text {
+            fill: #00796b;
+        }
+
+        .node--root text {
+            fill: #f57c00;
+        }
+
+        .node--intermediate text {
+            fill: #4db6ac;
+        }
+    </style>
+</head>
+<body>
+    <div id="tree-container"></div>
+    
+      
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script>
+        var treeData = {
+    name: "TEJIDO CARTILAGINOSO",
+    children: [
+        {
+            name: "Funciones",
+            children: [
+                {name: "Soporte de tejido suave"},
+                {name: "Revestimiento de superficies articulares"},
+                {name:"Formacion y crecimiento de huesos largos"}
+            ]
+        },
+        { 
+            name: "Tipos",
+            children: [
+                {name: "Hialino"},
+                {name: "Elastico"},
+                {name:"Fibroso"}  
+                ]
+        },
+        {   
+            name: "Crecimiento",
+            children: [
+                { 
+                    name: "Aposicional",
+                    children: [
+                        { name: "Diferenciacion y multiplicacion de celulas de pericondrio"},
+                    ]
+                },
+                { 
+                    name: "Intersticial",
+                    children: [
+                        { name: "Division mitotica de condrocitos preexistente" },
+                    ]
+                },
+            ]
+        },
+        {
+          name:"Componentes",
+          children:[
+            {
+                name:"Celulas",
+                children:[
+                    {name:"Produccion de matriz extracelular"},
+                    {name:"Condroblastos"},
+                    {name:"Condrocitos"}
+                ]
+            },
+            {
+                name:"Matriz Extracelular",
+                children:[
+                    {name:"Proteglicanos"},
+                    {name:"Glicoproteinas"},
+                    {name:"Acido Hialuronato"},
+                    {name:"Fibras elasticas y/o colagenadas"},
+                    {name:"Fibrillas de colageno"}
+                ]
+            },
+            {
+                name:"Pericondrio",
+                children:[
+                    {name:"Difusion de nutrientes"}
+                ]
+            },
+          ]
+        },
+    ]
+};
+
+        
+        var svg = d3.select("#tree-container").append("svg")
+            .attr("width", window.innerWidth* 1.8)
+            .attr("height", window.innerHeight * 3), // Ajusta este valor según tus necesidades
+            margin = {top: 20, right: 130, bottom: 30, left: 130},
+            width = svg.attr("width") - margin.left - margin.right,
+            height = svg.attr("height") - margin.top - margin.bottom;
+
+        var g = svg.append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var tree = d3.tree()
+            .size([height, width ]);
+
+        var root = d3.hierarchy(treeData, function(d) { return d.children; });
+        root.x0 = height / 2;
+        root.y0 = 0;
+
+        var i = 0;
+        update(root);
+
+        function update(source) {
+            var treeData = tree(root);
+
+            var nodes = treeData.descendants(),
+                links = treeData.descendants().slice(1);
+
+            nodes.forEach(function(d){ d.y = d.depth * 400}); // antes era 180
+
+
+            var node = g.selectAll('g.node')
+                .data(nodes, function(d) { return d.id || (d.id = ++i); });
+
+                var nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr('transform', function(d) {
+                    return 'translate(' + source.y0 + ',' + source.x0 + ')';
+                })
+                .on('click', click);
+
+            nodeEnter.append('circle')
+                .attr('class', function(d) { return d.children ? (d.parent ? "node--intermediate" : "node--root") : "node--leaf"; })
+                .attr('r', 1e-6);
+
+            nodeEnter.append('text')
+                .attr('dy', '.35em')
+                .attr('x', function(d) { return d.children ? -13 : 13; })
+                .style('fill-opacity', 1e-6)
+                .text(function(d) { return d.data.name; });
+
+            var nodeUpdate = nodeEnter.merge(node);
+
+            nodeUpdate.transition()
+                .duration(500)
+                .attr('transform', function(d) { 
+                    return 'translate(' + d.y + ',' + d.x + ')';
+                });
+
+            nodeUpdate.select('circle')
+                .attr('r', 10)
+                .style('fill-opacity', 1);
+
+            nodeUpdate.select('text')
+                .style('fill-opacity', 1);
+
+            var nodeExit = node.exit().transition()
+                .duration(500)
+                .attr('transform', function(d) {
+                    return 'translate(' + source.y + ',' + source.x + ')';
+                })
+                .remove();
+
+            nodeExit.select('circle')
+                .attr('r', 1e-6);
+
+            nodeExit.select('text')
+                .style('fill-opacity', 1e-6);
+
+            var link = g.selectAll('path.link')
+                .data(links, function(d) { return d.id; });
+
+            var linkEnter = link.enter().insert('path', "g")
+                .attr("class", "link")
+                .attr('d', function(d){
+                    var o = {x: source.x0, y: source.y0}
+                    return diagonal(o, o)
+                });
+
+            var linkUpdate = linkEnter.merge(link);
+
+            linkUpdate.transition()
+                .duration(500)
+                .attr('d', function(d){ return diagonal(d, d.parent) });
+
+            var linkExit = link.exit().transition()
+                .duration(500)
+                .attr('d', function(d) {
+                    var o = {x: source.x, y: source.y}
+                    return diagonal(o, o)
+                })
+                .remove();
+
+            nodes.forEach(function(d){
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+
+            function diagonal(s, d) {
+
+                path = `M ${s.y} ${s.x}
+                        C ${(s.y + d.y) / 2} ${s.x},
+                          ${(s.y + d.y) / 2} ${d.x},
+                          ${d.y} ${d.x}`
+
+                return path
+            }
+
+            function click(d) {
+                if (d.children) {
+                    d._children = d.children;
+                    d.children = null;
+                } else {
+                    d.children = d._children;
+                    d._children = null;
+                }
+                update(d);
+            }
+        }
+
+    </script>
+</body>
+</html>
